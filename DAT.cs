@@ -10,7 +10,7 @@ using System.IO.Compression;
 
 namespace DATExtract
 {
-    static class DAT
+    internal static class DAT
     {
         private static bool NEW_FORMAT = true;
 
@@ -226,7 +226,7 @@ namespace DATExtract
             {
                 int j = GetName(i);
 
-                //if (!filenameTable[i].Contains("OBIWAN_20TH.PREFAB_BAKED".ToLower()))
+                //if (!filenameTable[i].Contains("EYE_OBIWAN_20TH_NRM_DX11.TEXTURE".ToLower()))
                 //{
                 //    continue;
                 //}
@@ -338,20 +338,23 @@ namespace DATExtract
                     chunk.Read(4 + offset, out compressedSize);
                     chunk.Read(8 + offset, out decompressedSize);
 
+                    //Console.WriteLine("File {0} has bytes: {1} {2}", filename.Substring(filename.Length - 16, 16), chunk.ReadByte(12 + offset).ToString("X"), chunk.ReadByte(13 + offset).ToString("X"));
+
                     byte[] buffer = new byte[compressedSize];
                     chunk.ReadArray(12 + offset, buffer, 0, (int)compressedSize);
 
                     //decompressed = Compression.Deflate(buffer, decompressedSize);
 
-                    try
-                    {
+                    //try
+                    //{
                         decompressed = Compression.Deflate(buffer, decompressedSize);
-                    }
-                    catch (Exception ex)
-                    {
-                        Console.WriteLine("Failed file {0}", filename);
-                    }
+                    //}
+                    //catch (Exception ex)
+                    //{
+                    //    Console.WriteLine("Failed file {0}", filename);
+                    //}
                     //Console.WriteLine("Warning: File {0} uses a compression method that has not yet been implemented!", filename);
+
                 }
                 else if (char1 == 'Z' && char2 == 'I' && char3 == 'P' && char4 == 'X')
                 {

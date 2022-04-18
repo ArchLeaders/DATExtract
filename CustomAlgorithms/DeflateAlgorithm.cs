@@ -70,10 +70,6 @@ namespace DATExtract
             for (int i = 0xf; i > 0; i--)
             {
                 int r11 = 0xf - i;
-                if (r11 == 14)
-                {
-                    Console.WriteLine("Here!");
-                }
                 int count = chunk.occurs[1 + r11];
                 chunk.buffer1[r11] = (ushort)cumulative;
                 chunk.buffer2[r11] = (ushort)previous;
@@ -85,7 +81,6 @@ namespace DATExtract
                 chunk.buffer4[r11] = count << (i & 0x1f);
             }
             chunk.buffer4[15] = 0x00010000;
-            Console.WriteLine();
             if (0 < length)
             {
                 for (int i = 0; i < length; i++)
@@ -98,6 +93,10 @@ namespace DATExtract
                         int fromBuf3 = chunk.buffer3[number];
                         fromBuf2 -= fromBuf1;
                         fromBuf2 += fromBuf3;
+                        if (fromBuf2 == 144)
+                        {
+                            Console.WriteLine();
+                        }
                         chunk.bufferA[fromBuf2] = (byte)number;
                         chunk.bufferB[fromBuf2] = (short)i;
                         if (number < 10)
@@ -114,10 +113,6 @@ namespace DATExtract
                                     long val = final;
                                     final = final + (1 << number);
                                     chunk.output[val] = (ushort)fromBuf2;
-                                    if (val == 3)
-                                    {
-                                        Console.WriteLine();
-                                    }
                                 }
                             }
                         }
@@ -203,10 +198,6 @@ namespace DATExtract
                 int progress = result[0] + result[1];
                 while (i < progress)
                 {
-                    if (i > 0x133)
-                    {
-                        Console.WriteLine("asdf");
-                    }
                     if (comparison < 0x10)
                     {
                         Manipulate();
@@ -260,18 +251,23 @@ namespace DATExtract
                         }
                         else
                         {
-                            Console.WriteLine("keep going!");
-                            //if (comparison < 7)
-                            //{
-                            //    Manipulate();
-                            //}
-                            //comparison -= 7;
-                            //increment = (int)(orByte & 0x7f) + 0xb;
-                            //orByte >>= 7;
+                            if (comparison < 7)
+                            {
+                                Manipulate();
+                            }
+                            comparison -= 7;
+                            increment = (int)(orByte & 0x7f) + 0xb;
+                            orByte >>= 7;
+                            toCopy = 0x00;
+                            // ^ this line needs to be verified
                         }
 
                         for (int copy = i; copy < i + increment; copy++)
                         {
+                            //if (copy == 214)
+                            //{
+                            //    Console.WriteLine();
+                            //}
                             someByteArray[copy] = toCopy;
                         }
                     }
@@ -378,18 +374,19 @@ namespace DATExtract
 
         private static void TestWithSample(byte[] resultantFile, long pos)
         {
-            return;
+#if DEBUG
             if (sampleFile == null)
             {
-                sampleFile = File.ReadAllBytes(@"D:\Games\SteamLibrary\steamapps\common\LEGO Star Wars - The Skywalker Saga\extracted\ADDITIONALCONTENT\CP_1STPARTYPURCHASE\COLLECTABLES\CONFIG.PRJ");
+                sampleFile = File.ReadAllBytes(@"D:\Games\SteamLibrary\steamapps\common\LEGO Star Wars - The Skywalker Saga\extracted\ADDITIONALCONTENT\CP_1STPARTYPURCHASE\CHARS\SUPER_CHARACTER_TEXTURE\FACE\EYE\EYE_OBIWAN_20TH_NRM_DX11.TEXTURE");
             }
 
             byte ourFile = resultantFile[pos];
             byte sample = sampleFile[pos + previousProgress];
             if (ourFile != sample)
             {
-                //Console.WriteLine("Not happy bunny here...");
+                Console.WriteLine("Not happy bunny here...");
             }
+#endif
         }
 
         private static void Finaliser()
@@ -401,6 +398,11 @@ namespace DATExtract
             {
                 while (true)
                 {
+                    //if (pos > 0x52da)
+                    //{
+                    //    Console.WriteLine();
+                    //}
+
                     if (comparison < 0x10)
                     {
                         Manipulate();
@@ -440,6 +442,10 @@ namespace DATExtract
                     }
                     if (0xff < current) break;
                     resultantFile[pos] = (byte)current;
+                    if (pos == 293)
+                    {
+                        Console.WriteLine();
+                    }
                     TestWithSample(resultantFile, pos);
                     pos++;
                 }
@@ -503,10 +509,10 @@ namespace DATExtract
                         Manipulate();
                     }
                     comparison -= (int)fromTable3;
-                    long shifted = (int)orByte >> (int)(fromTable3 & 0xff);
+                    //long shifted = ((int)orByte >> (int)(fromTable3 & 0xff));
                     int editor = ((int)(1 << (int)(fromTable3 & 0x1f))) - 1;
                     fromTable4 += (uint)(editor & orByte);
-                    orByte = shifted;
+                    orByte >>= ((byte)fromTable3 & 0x1f);
                 }
                 long readPos = pos - (int)fromTable4;
                 for (int i = (int)fromTable2; i != 0; i--)

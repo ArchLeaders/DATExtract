@@ -6,11 +6,11 @@ using System.Diagnostics;
 
 namespace DATExtract
 {
-    class Program
+    internal class Program
     {
         internal static string version = "1.0.0";
         internal static string extractLocation = "";
-        internal static string fileLocation = @"D:\Games\SteamLibrary\steamapps\common\LEGO Star Wars - The Skywalker Saga\datBackups\CP_1STPARTYPURCHASE.DAT";
+        internal static string fileLocation = "";
         internal static string rawFileName = "";
 
         static void Main(string[] args)
