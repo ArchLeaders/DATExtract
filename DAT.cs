@@ -4,11 +4,11 @@ using System.IO.MemoryMappedFiles;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using Oodle.NET;
+//using Oodle.NET;
 using System.IO;
 using System.IO.Compression;
 
-namespace DATExtract
+namespace DATLib
 {
     internal static class DAT
     {

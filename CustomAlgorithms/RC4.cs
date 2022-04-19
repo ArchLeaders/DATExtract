@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace DATExtract
+namespace DATLib
 {
     public static class RC4
     {

@@ -9,20 +9,22 @@ using System.IO.Compression;
 using System.Runtime.InteropServices;
 //using RC4Cryptography;
 
-namespace DATExtract
+namespace DATLib
 {
     internal static class Compression
     {
-        internal static OodleCompressor oodle;
+        //internal static OodleCompressor oodle;
+
+        internal static bool oodleExists = false;
 
         internal static void CheckOodle()
         {
-            try
+            string dllLocation = Path.Combine(Path.GetDirectoryName(System.Reflection.Assembly.GetEntryAssembly().Location), "oo2core_8_win64.dll");
+            if (File.Exists(dllLocation))
             {
-                string dllLocation = Path.Combine(Path.GetDirectoryName(System.Reflection.Assembly.GetEntryAssembly().Location), "oo2core_8_win64.dll");
-                oodle = new OodleCompressor(dllLocation);
+                oodleExists = true;
             }
-            catch (DllNotFoundException ex)
+            else
             {
                 Console.ForegroundColor = ConsoleColor.Red;
                 Console.Write("Warning: ");
@@ -41,15 +43,17 @@ namespace DATExtract
                 return null;
             }
 
-            unsafe
-            {
-                var result = oodle.DecompressBuffer(buffer, buffer.Length, decompressed, (int)decompressedSize, OodleLZ_FuzzSafe.No, OodleLZ_CheckCRC.No, OodleLZ_Verbosity.Max, 0L, 0L, 0L, 0L, 0L, 3L, OodleLZ_Decode_ThreadPhase.Unthreaded);
-                if (result == 0)
-                {
-                    Console.WriteLine("Critical: Oodle could not decompress file '{0}'!", filename);
-                    return null;
-                }
-            }
+            Oodle.Decompress(buffer, buffer.Length, decompressed, (int)decompressedSize);
+
+            //unsafe
+            //{
+            //    var result = oodle.DecompressBuffer(buffer, buffer.Length, decompressed, (int)decompressedSize, OodleLZ_FuzzSafe.No, OodleLZ_CheckCRC.No, OodleLZ_Verbosity.Max, 0L, 0L, 0L, 0L, 0L, 3L, OodleLZ_Decode_ThreadPhase.Unthreaded);
+            //    if (result == 0)
+            //    {
+            //        Console.WriteLine("Critical: Oodle could not decompress file '{0}'!", filename);
+            //        return null;
+            //    }
+            //}
 
             return decompressed;
         }
@@ -80,7 +84,7 @@ namespace DATExtract
 
         internal static void WriteFile(string filename, byte[] buffer)
         {
-            string location = Path.Join(Program.extractLocation, filename);
+            string location = Path.Join(DATExtract.extractLocation, filename);
 
             Directory.CreateDirectory(Path.GetDirectoryName(location));
 

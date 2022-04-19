@@ -4,12 +4,13 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace DATExtract
+namespace DATLib
 {
     internal static class ManageConsole
     {
         public static void ChangeTitle(string title)
         {
+#if DEBUG
             string termination = "";
             if (Compression.oodle == null)
             {
@@ -24,6 +25,7 @@ namespace DATExtract
                 Console.Title = "DATExtract.exe - " + Program.version + " - " + title + termination;
 
             }
+#endif
         }
     }
 }

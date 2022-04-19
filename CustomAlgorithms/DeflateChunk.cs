@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace DATExtract.CustomAlgorithms
+namespace DATLib.CustomAlgorithms
 {
     internal class DeflateChunk
     {

@@ -6,7 +6,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace DATExtract
+namespace DATLib
 {
     /// <summary>
     /// Entry class that wraps the DAT functions nicely.
@@ -14,6 +14,7 @@ namespace DATExtract
     public static class DATExtract
     {
         internal static string fileLocation = "";
+        internal static string extractLocation = "";
 
         public static void SetDAT(string datFile)
         {

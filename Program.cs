@@ -4,8 +4,9 @@ using System.IO.MemoryMappedFiles;
 using System.Text;
 using System.Diagnostics;
 
-namespace DATExtract
+namespace DATLib
 {
+#if DEBUG
     internal class Program
     {
         internal static string version = "1.0.0";
@@ -87,4 +88,5 @@ namespace DATExtract
             Console.ReadLine();
         }
     }
+#endif
 }

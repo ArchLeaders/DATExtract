@@ -1,7 +1,7 @@
 ﻿// Very very very incomplete attempt at decoding the DFLT algorithm.
 // Feel free to poach / do whatever with.
 
-using DATExtract.CustomAlgorithms;
+using DATLib.CustomAlgorithms;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -9,7 +9,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace DATExtract
+namespace DATLib
 {
     internal static class DeflateAlgorithm
     {
