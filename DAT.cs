@@ -12,21 +12,23 @@ namespace DATExtract
 {
     internal static class DAT
     {
+        internal static MemoryMappedFile mmf;
+
         private static bool NEW_FORMAT = true;
 
-        private static FileInfo[] files;
+        public static FileInfo[] files;
 
         private static string[] filenameTable;
 
         internal static int TYPE_BOH;
 
-        internal static uint FILES;
+        internal static uint fileCount;
 
         private static long CRC_FNV_OFFSET = -3750763034362895579;
         
         private static long CRC_FNV_PRIME = 1099511628211;
 
-        public static void CheckCompressed(MemoryMappedViewAccessor accessor)
+        internal static void CheckCompressed(MemoryMappedViewAccessor accessor)
         {
             byte[] compressed = new byte[16];
             accessor.ReadArray(0, compressed, 0, 16);
@@ -36,39 +38,43 @@ namespace DATExtract
             }
         }
 
-        public static void GetInfo(MemoryMappedViewAccessor startOfFile, MemoryMappedFile mmf)
+        internal static void GetInfo()
         {
-            startOfFile.Read(0, out uint offset);
-            if ((offset & 0x80000000) != 0)
+            using (var startOfFile = mmf.CreateViewAccessor(0, 16))
             {
-                offset ^= 0xffffffff;
-                offset <<= 8;
-                offset += 0x100;
-            }
+                CheckCompressed(startOfFile);
 
-            startOfFile.Read(4, out uint size);
-
-            using (var info_block = mmf.CreateViewAccessor(offset, size))
-            {
-                info_block.Read(0, out TYPE_BOH);
-
-                info_block.Read(4, out FILES);
-
-                if (FILES != 0x3443432e && FILES != 0x2e434334 && TYPE_BOH != 0x3443432e && TYPE_BOH != 0x2e434334)
+                startOfFile.Read(0, out uint offset);
+                if ((offset & 0x80000000) != 0)
                 {
-
-                    OldFormat(info_block, mmf);
+                    offset ^= 0xffffffff;
+                    offset <<= 8;
+                    offset += 0x100;
                 }
-                else
+
+                startOfFile.Read(4, out uint size);
+
+                using (var info_block = mmf.CreateViewAccessor(offset, size))
                 {
-                    NewFormat(info_block, mmf);
+                    info_block.Read(0, out TYPE_BOH);
+
+                    info_block.Read(4, out fileCount);
+
+                    if (fileCount != 0x3443432e && fileCount != 0x2e434334 && TYPE_BOH != 0x3443432e && TYPE_BOH != 0x2e434334)
+                    {
+                        OldFormat(info_block, mmf);
+                    }
+                    else
+                    {
+                        NewFormat(info_block, mmf);
+                    }
                 }
             }
         }
 
         private static void OldFormat(MemoryMappedViewAccessor info_block, MemoryMappedFile mmf)
         {
-            uint NAME_INFO = (FILES * 16) + 8;
+            uint NAME_INFO = (fileCount * 16) + 8;
             info_block.Read(NAME_INFO, out uint NAMES);
             NAME_INFO += 4;
 
@@ -100,8 +106,8 @@ namespace DATExtract
             info_block.Read(16, out uint NEW_FORMAT_VER);
             Endian.Swap(ref NEW_FORMAT_VER);
 
-            info_block.Read(20, out FILES);
-            Endian.Swap(ref FILES);
+            info_block.Read(20, out fileCount);
+            Endian.Swap(ref fileCount);
 
             info_block.Read(24, out uint NAMES);
             Endian.Swap(ref NAMES);
@@ -173,15 +179,15 @@ namespace DATExtract
 
             info_block.Read(offset + (NAMES * length), out TYPE_BOH);
             Endian.Swap(ref TYPE_BOH);
-            info_block.Read(offset + 4 + (NAMES * length), out FILES);
-            Endian.Swap(ref FILES);
+            info_block.Read(offset + 4 + (NAMES * length), out fileCount);
+            Endian.Swap(ref fileCount);
 
             offset = offset + 8 + (NAMES * length);
 
-            files = new FileInfo[FILES];
+            files = new FileInfo[fileCount];
             filenameTable = paths;
 
-            for (int i = 0; i < FILES; i++)
+            for (int i = 0; i < fileCount; i++)
             {
                 long fileOffset;
                 if (TYPE_BOH <= -11)
@@ -222,19 +228,18 @@ namespace DATExtract
 
             GetCRCs(info_block, offset);
 
-            for (int i = 0; i < FILES; i++)
+            for (int i = 0; i < fileCount; i++)
             {
-                int j = GetName(i);
+                int fileId = GetName(i);
+
+                files[fileId].path = filenameTable[i];
 
                 //if (!filenameTable[i].Contains("EYE_OBIWAN_20TH_NRM_DX11.TEXTURE".ToLower()))
                 //{
                 //    continue;
                 //}
 
-                ExtractFile(mmf.CreateViewAccessor(files[j].offset, files[j].zsize), j, files[j], filenameTable[i]);
             }
-
-            Console.WriteLine("Successfully extracted {0} out of {1} files!", Compression.totalExtracted, FILES);
         }
 
         private static int GetName(int id)
@@ -248,7 +253,7 @@ namespace DATExtract
                 crc *= CRC_FNV_PRIME;
             }
 
-            for (int i = 0; i < FILES; i++)
+            for (int i = 0; i < fileCount; i++)
             {
                 if (files[i].crc == crc)
                 {
@@ -267,7 +272,7 @@ namespace DATExtract
             //long temp4 = offset + (FILES * 4);
             //long temp8 = offset + (FILES * 8);
 
-            for (int i = 0; i < FILES; i++)
+            for (int i = 0; i < fileCount; i++)
             {
                 info_block.Read(offset + (i * 8), out long crc);
                 Endian.Swap(ref crc);
@@ -275,134 +280,138 @@ namespace DATExtract
             }
         }
 
-        public static void ExtractFile(MemoryMappedViewAccessor chunk, int id, FileInfo file, string filename)
+        internal static void ExtractFile(FileInfo file)
         {
-            filename = filename.ToUpper();
-
-            float div = (float)(Compression.totalExtracted) / DAT.FILES;
-            uint percentage = (uint)(div * 100);
-
-            ManageConsole.ChangeTitle($"Extracting... ({percentage}%)");
-
-            Console.WriteLine(file.offset);
-
-            uint chunkProgress = 0;
-            uint offset = 0;
-
-            byte[] completeFile = new byte[file.size];
-            int previousCopy = 0;
-
-            while (chunkProgress < file.zsize)
+            using (var chunk = mmf.CreateViewAccessor(file.offset, file.zsize))
             {
-                char char1 = (char)chunk.ReadByte(0 + offset);
-                char char2 = (char)chunk.ReadByte(1 + offset);
-                char char3 = (char)chunk.ReadByte(2 + offset);
-                char char4 = (char)chunk.ReadByte(3 + offset);
+                string filename = file.path;
 
-                uint compressedSize = 0;
-                uint decompressedSize = 0;
+                float div = (float)(Compression.totalExtracted) / DAT.fileCount;
+                uint percentage = (uint)(div * 100);
 
-                byte[] decompressed = new byte[0];
+                ManageConsole.ChangeTitle($"Extracting... ({percentage}%)");
 
-                bool compressed = true;
+                Console.WriteLine(file.offset);
 
-                if (char1 == 'O' && char2 == 'O' && char3 == 'D' && char4 == 'L')
+                uint chunkProgress = 0;
+                uint offset = 0;
+
+                byte[] completeFile = new byte[file.size];
+                int previousCopy = 0;
+
+                while (chunkProgress < file.zsize)
                 {
-                    chunk.Read(4 + offset, out compressedSize);
-                    chunk.Read(8 + offset, out decompressedSize);
+                    char char1 = (char)chunk.ReadByte(0 + offset);
+                    char char2 = (char)chunk.ReadByte(1 + offset);
+                    char char3 = (char)chunk.ReadByte(2 + offset);
+                    char char4 = (char)chunk.ReadByte(3 + offset);
 
-                    byte[] buffer = new byte[compressedSize];
-                    chunk.ReadArray(12 + offset, buffer, 0, (int)compressedSize);
+                    uint compressedSize = 0;
+                    uint decompressedSize = 0;
 
-                    decompressed = Compression.ExtractOodle(buffer, decompressedSize, filename);
+                    byte[] decompressed = new byte[0];
 
+                    bool compressed = true;
+
+                    if (char1 == 'O' && char2 == 'O' && char3 == 'D' && char4 == 'L')
+                    {
+                        chunk.Read(4 + offset, out compressedSize);
+                        chunk.Read(8 + offset, out decompressedSize);
+
+                        byte[] buffer = new byte[compressedSize];
+                        chunk.ReadArray(12 + offset, buffer, 0, (int)compressedSize);
+
+                        decompressed = Compression.ExtractOodle(buffer, decompressedSize, filename);
+
+                    }
+                    else if (char1 == 'O' && char2 == 'O' && char3 == 'D' && char4 == '2')
+                    {
+                        Console.WriteLine("Warning: File {0} uses a compression method that has not yet been implemented!", filename);
+                    }
+                    else if (char1 == 'L' && char2 == 'Z' && char3 == '2' && char4 == 'K')
+                    {
+                        Console.WriteLine("Warning: File {0} uses a compression method that has not yet been implemented!", filename);
+                    }
+                    else if (char1 == 'Z' && char2 == 'L' && char3 == 'I' && char4 == 'B')
+                    {
+                        Console.WriteLine("Warning: File {0} uses a compression method that has not yet been implemented!", filename);
+                    }
+                    else if (char1 == 'R' && char2 == 'F' && char3 == 'P' && char4 == 'K')
+                    {
+                        Console.WriteLine("Warning: File {0} uses a compression method that has not yet been implemented!", filename);
+                    }
+                    else if (char1 == 'D' && char2 == 'F' && char3 == 'L' && char4 == 'T')
+                    {
+                        chunk.Read(4 + offset, out compressedSize);
+                        chunk.Read(8 + offset, out decompressedSize);
+
+                        //Console.WriteLine("File {0} has bytes: {1} {2}", filename.Substring(filename.Length - 16, 16), chunk.ReadByte(12 + offset).ToString("X"), chunk.ReadByte(13 + offset).ToString("X"));
+
+                        byte[] buffer = new byte[compressedSize];
+                        chunk.ReadArray(12 + offset, buffer, 0, (int)compressedSize);
+
+                        //decompressed = Compression.Deflate(buffer, decompressedSize);
+
+                        //try
+                        //{
+                            decompressed = Compression.Deflate(buffer, decompressedSize);
+                        //}
+                        //catch (Exception ex)
+                        //{
+                        //    Console.WriteLine("Failed file {0}", filename);
+                        //}
+                        //Console.WriteLine("Warning: File {0} uses a compression method that has not yet been implemented!", filename);
+
+                    }
+                    else if (char1 == 'Z' && char2 == 'I' && char3 == 'P' && char4 == 'X')
+                    {
+                        byte[] key = new byte[] { chunk.ReadByte(4 + offset), chunk.ReadByte(5 + offset), chunk.ReadByte(6 + offset), chunk.ReadByte(7 + offset) };
+                        chunk.Read(4 + offset, out compressedSize);
+
+                        byte[] buffer = new byte[compressedSize];
+                        chunk.ReadArray(12 + offset, buffer, 0, (int)compressedSize);
+
+                        decompressed = Compression.ExtractZIPX(buffer, key, compressedSize, filename);
+                    }
+                    else
+                    {
+                        byte[] buffer = new byte[file.size];
+                        chunk.ReadArray(0 + offset, buffer, 0, (int)file.size);
+                        Array.Copy(buffer, 0, completeFile, previousCopy, buffer.Length);
+                        previousCopy += buffer.Length;
+
+                        compressedSize = (uint)buffer.Length;
+
+                        compressed = false;
+                    }
+
+                    if (decompressed != null && decompressed.Length > 0)
+                    {
+                        Array.Copy(decompressed, 0, completeFile, previousCopy, decompressed.Length);
+                        previousCopy += decompressed.Length;
+                    }
+                    else if (compressed)
+                    {
+                        Console.WriteLine("Could not extract {0}", filename);
+                        Extract.AddFailedFile(filename);
+                        return;
+                    }
+
+                    if (compressedSize == 0)
+                    {
+                        throw new Exception("CompressedSize of chunk == 0?");
+                    }
+
+                    offset += 12;
+                    offset += compressedSize;
+
+                    chunkProgress += 12;
+                    chunkProgress += compressedSize;
                 }
-                else if (char1 == 'O' && char2 == 'O' && char3 == 'D' && char4 == '2')
-                {
-                    Console.WriteLine("Warning: File {0} uses a compression method that has not yet been implemented!", filename);
-                }
-                else if (char1 == 'L' && char2 == 'Z' && char3 == '2' && char4 == 'K')
-                {
-                    Console.WriteLine("Warning: File {0} uses a compression method that has not yet been implemented!", filename);
-                }
-                else if (char1 == 'Z' && char2 == 'L' && char3 == 'I' && char4 == 'B')
-                {
-                    Console.WriteLine("Warning: File {0} uses a compression method that has not yet been implemented!", filename);
-                }
-                else if (char1 == 'R' && char2 == 'F' && char3 == 'P' && char4 == 'K')
-                {
-                    Console.WriteLine("Warning: File {0} uses a compression method that has not yet been implemented!", filename);
-                }
-                else if (char1 == 'D' && char2 == 'F' && char3 == 'L' && char4 == 'T')
-                {
-                    chunk.Read(4 + offset, out compressedSize);
-                    chunk.Read(8 + offset, out decompressedSize);
 
-                    //Console.WriteLine("File {0} has bytes: {1} {2}", filename.Substring(filename.Length - 16, 16), chunk.ReadByte(12 + offset).ToString("X"), chunk.ReadByte(13 + offset).ToString("X"));
+                Compression.WriteFile(filename, completeFile);
 
-                    byte[] buffer = new byte[compressedSize];
-                    chunk.ReadArray(12 + offset, buffer, 0, (int)compressedSize);
-
-                    //decompressed = Compression.Deflate(buffer, decompressedSize);
-
-                    //try
-                    //{
-                        decompressed = Compression.Deflate(buffer, decompressedSize);
-                    //}
-                    //catch (Exception ex)
-                    //{
-                    //    Console.WriteLine("Failed file {0}", filename);
-                    //}
-                    //Console.WriteLine("Warning: File {0} uses a compression method that has not yet been implemented!", filename);
-
-                }
-                else if (char1 == 'Z' && char2 == 'I' && char3 == 'P' && char4 == 'X')
-                {
-                    byte[] key = new byte[] { chunk.ReadByte(4 + offset), chunk.ReadByte(5 + offset), chunk.ReadByte(6 + offset), chunk.ReadByte(7 + offset) };
-                    chunk.Read(4 + offset, out compressedSize);
-
-                    byte[] buffer = new byte[compressedSize];
-                    chunk.ReadArray(12 + offset, buffer, 0, (int)compressedSize);
-
-                    decompressed = Compression.ExtractZIPX(buffer, key, compressedSize, filename);
-                }
-                else
-                {
-                    byte[] buffer = new byte[file.size];
-                    chunk.ReadArray(0 + offset, buffer, 0, (int)file.size);
-                    Array.Copy(buffer, 0, completeFile, previousCopy, buffer.Length);
-                    previousCopy += buffer.Length;
-
-                    compressedSize = (uint)buffer.Length;
-
-                    compressed = false;
-                }
-
-                if (decompressed != null && decompressed.Length > 0)
-                {
-                    Array.Copy(decompressed, 0, completeFile, previousCopy, decompressed.Length);
-                    previousCopy += decompressed.Length;
-                }
-                else if (compressed)
-                {
-                    Console.WriteLine("Could not extract {0}", filename);
-                    Extract.AddFailedFile(filename);
-                    return;
-                }
-
-                if (compressedSize == 0)
-                {
-                    throw new Exception("CompressedSize of chunk == 0?");
-                }
-
-                offset += 12;
-                offset += compressedSize;
-
-                chunkProgress += 12;
-                chunkProgress += compressedSize;
             }
-
-            Compression.WriteFile(filename, completeFile);
         }
     }
 }

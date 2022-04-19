@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace DATExtract
 {
-    internal struct FileInfo
+    public struct FileInfo
     {
         public long crc;
         public string path;
