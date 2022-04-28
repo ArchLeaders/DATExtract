@@ -8,6 +8,7 @@
     <StartupObject />
     <RootNamespace>DATExtract</RootNamespace>
     <AssemblyName>DATExtract</AssemblyName>
+    <SignAssembly>true</SignAssembly>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
@@ -35,7 +36,6 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Oodle.NET" Version="1.0.1" />
     <PackageReference Include="SharpZipLib" Version="1.3.3" />
   </ItemGroup>
 

@@ -24,9 +24,18 @@ namespace DATLib
 
         internal static uint fileCount;
 
-        private static long CRC_FNV_OFFSET = -3750763034362895579;
-        
-        private static long CRC_FNV_PRIME = 1099511628211;
+        //private static long CRC_FNV_OFFSET = -3750763034362895579;
+
+        //private static long CRC_FNV_PRIME = 1099511628211;
+
+        private static long CRC_FNV_OFFSET_32 = 0x811c9dc5;
+
+        private static long CRC_FNV_PRIME_32 = 0x199933;
+
+        private static long CRC_FNV_OFFSET_64 = -3750763034362895579;
+
+        private static long CRC_FNV_PRIME_64 = 1099511628211;
+
 
         internal static void CheckCompressed(MemoryMappedViewAccessor accessor)
         {
@@ -56,6 +65,8 @@ namespace DATLib
 
                 using (var info_block = mmf.CreateViewAccessor(offset, size))
                 {
+                    Console.WriteLine("offset: " + offset);
+
                     info_block.Read(0, out TYPE_BOH);
 
                     info_block.Read(4, out fileCount);
@@ -72,6 +83,8 @@ namespace DATLib
             }
         }
 
+        internal static List<string> pathsOldFormat;
+
         private static void OldFormat(MemoryMappedViewAccessor info_block, MemoryMappedFile mmf)
         {
             uint NAME_INFO = (fileCount * 16) + 8;
@@ -85,9 +98,48 @@ namespace DATLib
             }
 
             uint NAME_OFF = NAME_INFO + (NAMES * NAME_FIELD_SIZE);
+            Console.WriteLine(NAME_OFF);
             info_block.Read(NAME_OFF, out uint NAMECRC_OFF);
+            NAME_OFF += 4;
+            NAMECRC_OFF += NAME_OFF;
+
+            files = new FileInfo[fileCount];
 
             GetCRCs(info_block, NAMECRC_OFF);
+
+            uint newOffset = 0;
+            if (TYPE_BOH <= -2)
+            {
+                newOffset = 8;
+            }
+
+            pathsOldFormat = new List<string>();
+
+            filenameTable = new string[fileCount];
+
+            int arrPos = 0;
+            nameOffset = 0;
+            for (int i = 0; i < fileCount; i++)
+            { // Don't ask
+                filenameTable[i] = SetName(info_block, ref NAME_INFO, NAME_OFF, ref arrPos);
+                int fileId = GetName(i);
+
+                files[fileId].path = filenameTable[i];
+                int offset = (fileId * 16) + 8;
+                info_block.Read(offset, out uint fileOffset);
+                info_block.Read(offset + 4, out uint zsize);
+                info_block.Read(offset + 8, out uint size);
+                info_block.Read(offset + 12, out uint packed);
+                packed &= 0x00ffffff;
+                if (TYPE_BOH != -1)
+                {
+                    fileOffset <<= 8;
+                }
+                files[fileId].offset = fileOffset + info_block.ReadByte(offset + 15);
+                files[fileId].zsize = zsize;
+                files[fileId].size = size;
+                files[fileId].packed = packed;
+            }
         }
 
         private static void NewFormat(MemoryMappedViewAccessor info_block, MemoryMappedFile mmf)
@@ -179,6 +231,8 @@ namespace DATLib
 
             info_block.Read(offset + (NAMES * length), out TYPE_BOH);
             Endian.Swap(ref TYPE_BOH);
+            //Console.WriteLine(TYPE_BOH);
+            //throw new Exception();
             info_block.Read(offset + 4 + (NAMES * length), out fileCount);
             Endian.Swap(ref fileCount);
 
@@ -207,7 +261,7 @@ namespace DATLib
                 Endian.Swap(ref SIZE);
 
                 long packed = 0;
-                if (TYPE_BOH <= -12)
+                if (TYPE_BOH <= -13) // The original script suggested -12, but that causes errors with dcsv
                 {
                     packed = fileOffset;
                     packed >>= 56;
@@ -216,6 +270,24 @@ namespace DATLib
                     {
                         packed = 2;
                     }
+                }
+                else if (TYPE_BOH <= -10)
+                {
+                    packed = SIZE;
+                    SIZE &= 0x7fffffff;
+                    packed >>= 31;
+                    if (packed != 0)
+                    {
+                        packed = 2;
+                    }
+                }
+                else
+                { // Untested code block.
+                    info_block.Read(offset + 16, out byte PACKED);
+                    info_block.Read(offset + 17, out ushort ZERO);
+                    info_block.Read(offset + 19, out byte OFFSET2);
+                    offset <<= 8;
+                    offset |= OFFSET2;
                 }
 
                 files[i].offset = fileOffset;
@@ -242,15 +314,104 @@ namespace DATLib
             }
         }
 
+        private static int nameOffset = 0;
+
+        private static string SetName(MemoryMappedViewAccessor info_block, ref uint currentOffset, uint NAME_OFF, ref int arrPos)
+        {
+            short NEXT = 1;
+            string FULLPATH = "";
+            string NAME = "";
+            //Console.WriteLine("currentOffset: " + currentOffset);
+            while (NEXT > 0)
+            {
+                info_block.Read(currentOffset, out NEXT);
+                info_block.Read(currentOffset + 2, out short PREV);
+                info_block.Read(currentOffset + 4, out int OFF);
+
+                //Console.WriteLine("next: " + NEXT);
+                //Console.WriteLine("prev: " + PREV);
+                //Console.WriteLine("off: " + OFF);
+
+                if (TYPE_BOH <= -5)
+                {
+                    currentOffset += 4; // unnecessary data or something idk
+                }
+
+                NAME = "";
+                if (OFF >= 0)
+                {
+                    OFF += (int)NAME_OFF;
+                    //Console.WriteLine(OFF);
+
+                    bool previousZero = false;
+                    while (true)
+                    {
+                        info_block.Read(NAME_OFF + nameOffset, out byte currByte);
+                        if (currByte == 0)
+                        {
+                            if (previousZero == true) { NAME = NAME.Substring(0, NAME.Length - 1); nameOffset++; break; }
+                            previousZero = true;
+                        }
+                        NAME += (char)currByte;
+                        nameOffset++;
+                    }
+                    //Console.WriteLine(NAME);
+                    //currentOffset += nameOffset;
+                }
+
+                //FULLPATH = "";
+                if (PREV != 0)
+                {
+                    //Console.WriteLine(PREV);
+                    FULLPATH = pathsOldFormat[PREV];
+                    //Console.WriteLine("Read path: " + FULLPATH);
+                }
+                pathsOldFormat.Add(FULLPATH);
+                if (NEXT > 0)
+                {
+                    //Console.WriteLine("lll");
+                    string temp = pathsOldFormat[PREV];
+                    //Console.WriteLine("kkk");
+                    //Console.WriteLine(FULLPATH);
+                    //Console.WriteLine(temp);
+                    //if (temp != "")
+                    //{
+                    //    throw new Exception("used");
+                    //    FULLPATH = @"\" + temp + @"\";
+                    //}
+                    if (NAME != "")
+                    {
+                        FULLPATH += NAME + @"\";
+                    }
+                }
+                arrPos += 1;
+                currentOffset += 8;
+            }
+
+            string fullName = @"\" + FULLPATH + NAME;
+            
+            return fullName;
+        }
+
         private static int GetName(int id)
         {
             string test = filenameTable[id];
             string fullname = test.Substring(1);
-            long crc = CRC_FNV_OFFSET;
+            long crc = is64 ? CRC_FNV_OFFSET_64 : CRC_FNV_OFFSET_32;
             foreach (char character in fullname.ToUpper())
             {
                 crc ^= character;
-                crc *= CRC_FNV_PRIME;
+                crc *= is64 ? CRC_FNV_PRIME_64 : CRC_FNV_PRIME_32;
+            }
+            //Console.WriteLine(fullname.ToUpper());
+
+            Console.WriteLine(fullname.ToUpper());
+            Console.WriteLine(crc);
+            throw new Exception();
+
+            if (!is64)
+            {
+                crc &= 0xffffffff;
             }
 
             for (int i = 0; i < fileCount; i++)
@@ -266,17 +427,38 @@ namespace DATLib
             return 0;
         }
 
+        internal static bool is64 = false;
+
         private static void GetCRCs(MemoryMappedViewAccessor info_block, uint offset)
         {
+            is64 = false;
+
             // should check if offset is less than the file size according to script
             //long temp4 = offset + (FILES * 4);
             //long temp8 = offset + (FILES * 8);
 
+            info_block.Read(offset + (fileCount * 4), out uint test);
+            uint endBlock64 = offset + (fileCount * 8);
+            if (test != 0)
+            {
+                is64 = true;
+            }
+
+            Console.WriteLine("64-bit: " + is64);
+
             for (int i = 0; i < fileCount; i++)
             {
-                info_block.Read(offset + (i * 8), out long crc);
-                Endian.Swap(ref crc);
-                files[i].crc = crc;
+                if (is64)
+                {
+                    info_block.Read(offset + (i * 8), out long crc);
+                    Endian.Swap(ref crc);
+                    files[i].crc = crc;
+                }
+                else
+                {
+                    info_block.Read(offset + (i * 4), out uint crc);
+                    files[i].crc = crc;
+                }
             }
         }
 
@@ -284,14 +466,14 @@ namespace DATLib
         {
             using (var chunk = mmf.CreateViewAccessor(file.offset, file.zsize))
             {
+
+                //Console.WriteLine("GOt here!");
                 string filename = file.path;
 
                 float div = (float)(Compression.totalExtracted) / DAT.fileCount;
                 uint percentage = (uint)(div * 100);
 
                 ManageConsole.ChangeTitle($"Extracting... ({percentage}%)");
-
-                Console.WriteLine(file.offset);
 
                 uint chunkProgress = 0;
                 uint offset = 0;
@@ -326,6 +508,7 @@ namespace DATLib
                     }
                     else if (char1 == 'O' && char2 == 'O' && char3 == 'D' && char4 == '2')
                     {
+                        // Uses oodle with a different parameter
                         Console.WriteLine("Warning: File {0} uses a compression method that has not yet been implemented!", filename);
                     }
                     else if (char1 == 'L' && char2 == 'Z' && char3 == '2' && char4 == 'K')
@@ -336,7 +519,19 @@ namespace DATLib
                     {
                         Console.WriteLine("Warning: File {0} uses a compression method that has not yet been implemented!", filename);
                     }
+                    else if (char1 == 'R' && char2 == 'N' && char3 == 'C' && char4 == '_')
+                    {
+                        //throw new Exception("rnc");
+                        // According to others, there are no chunks for rnc and it is just the file :)
+                        //byte[] buffer = new byte[file.zsize];
+                        //decompressed = Compression.ExtractRnc(Buffer, decompressedSize);
+                        Console.WriteLine("Warning: File {0} uses a compression method that has not yet been implemented!", filename);
+                    }
                     else if (char1 == 'R' && char2 == 'F' && char3 == 'P' && char4 == 'K')
+                    {
+                        Console.WriteLine("Warning: File {0} uses a compression method that has not yet been implemented!", filename);
+                    }
+                    else if (char1 == 'L' && char2 == 'Z' && char3 == 'M' && char4 == 'A')
                     {
                         Console.WriteLine("Warning: File {0} uses a compression method that has not yet been implemented!", filename);
                     }
@@ -345,23 +540,10 @@ namespace DATLib
                         chunk.Read(4 + offset, out compressedSize);
                         chunk.Read(8 + offset, out decompressedSize);
 
-                        //Console.WriteLine("File {0} has bytes: {1} {2}", filename.Substring(filename.Length - 16, 16), chunk.ReadByte(12 + offset).ToString("X"), chunk.ReadByte(13 + offset).ToString("X"));
-
                         byte[] buffer = new byte[compressedSize];
                         chunk.ReadArray(12 + offset, buffer, 0, (int)compressedSize);
 
-                        //decompressed = Compression.Deflate(buffer, decompressedSize);
-
-                        //try
-                        //{
-                            decompressed = Compression.Deflate(buffer, decompressedSize);
-                        //}
-                        //catch (Exception ex)
-                        //{
-                        //    Console.WriteLine("Failed file {0}", filename);
-                        //}
-                        //Console.WriteLine("Warning: File {0} uses a compression method that has not yet been implemented!", filename);
-
+                        decompressed = Compression.Deflate(buffer, decompressedSize);
                     }
                     else if (char1 == 'Z' && char2 == 'I' && char3 == 'P' && char4 == 'X')
                     {
@@ -410,7 +592,6 @@ namespace DATLib
                 }
 
                 Compression.WriteFile(filename, completeFile);
-
             }
         }
     }

@@ -1,5 +1,4 @@
-﻿using Oodle.NET;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -16,10 +15,15 @@ namespace DATLib
         //internal static OodleCompressor oodle;
 
         internal static bool oodleExists = false;
+        private static bool checkedOodle = false;
 
         internal static void CheckOodle()
         {
-            string dllLocation = Path.Combine(Path.GetDirectoryName(System.Reflection.Assembly.GetEntryAssembly().Location), "oo2core_8_win64.dll");
+            if (checkedOodle) return;
+
+            checkedOodle = true;
+            
+            string dllLocation = Path.Combine(Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location), "oo2core_8_win64.dll");
             if (File.Exists(dllLocation))
             {
                 oodleExists = true;
@@ -36,7 +40,7 @@ namespace DATLib
         internal static byte[] ExtractOodle(byte[] buffer, uint decompressedSize, string filename)
         {
             byte[] decompressed = new byte[decompressedSize];
-            if (oodle == null)
+            if (!oodleExists)
             {
                 // I would have liked to write in colour here to be a lot more bold to the user, but I think it would just be too slow...
                 Console.WriteLine("Warning: Could not extract file '{0}' as oo2core_8_win64.dll is missing.", filename);
@@ -84,7 +88,21 @@ namespace DATLib
 
         internal static void WriteFile(string filename, byte[] buffer)
         {
-            string location = Path.Join(DATExtract.extractLocation, filename);
+            filename = filename.ToUpper();
+
+            string location = Path.Combine(DATExtract.extractLocation, filename.Substring(1));
+
+            if (location.Length > 247) // Max path size on Windows
+            {
+                Console.WriteLine("Failed to write file in desired directory due to path limitations!");
+                location = Path.Combine(DATExtract.extractLocation, @"shortened\", Path.GetFileName(filename));
+                Extract.AddTruncatedFile(filename);
+
+                if (location.Length > 247)
+                {
+                    throw new Exception("Bad file location! Choose a location with a shorter path.");
+                }
+            }
 
             Directory.CreateDirectory(Path.GetDirectoryName(location));
 
