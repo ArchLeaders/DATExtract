@@ -105,7 +105,10 @@ namespace DATLib
 
             files = new FileInfo[fileCount];
 
-            GetCRCs(info_block, NAMECRC_OFF);
+            if (TYPE_BOH != -1)
+            { // Lego Star Wars 1
+                GetCRCs(info_block, NAMECRC_OFF);
+            }
 
             uint newOffset = 0;
             if (TYPE_BOH <= -2)
@@ -118,7 +121,7 @@ namespace DATLib
             filenameTable = new string[fileCount];
 
             int arrPos = 0;
-            nameOffset = 0;
+            //nameOffset = 0;
             for (int i = 0; i < fileCount; i++)
             { // Don't ask
                 filenameTable[i] = SetName(info_block, ref NAME_INFO, NAME_OFF, ref arrPos);
@@ -140,6 +143,11 @@ namespace DATLib
                 files[fileId].size = size;
                 files[fileId].packed = packed;
             }
+        }
+
+        private static void ExtractLegacy(MemoryMappedViewAccessor info_block)
+        {
+            
         }
 
         private static void NewFormat(MemoryMappedViewAccessor info_block, MemoryMappedFile mmf)
@@ -314,7 +322,7 @@ namespace DATLib
             }
         }
 
-        private static int nameOffset = 0;
+        //private static int nameOffset = 0;
 
         private static string SetName(MemoryMappedViewAccessor info_block, ref uint currentOffset, uint NAME_OFF, ref int arrPos)
         {
@@ -325,8 +333,10 @@ namespace DATLib
             while (NEXT > 0)
             {
                 info_block.Read(currentOffset, out NEXT);
+                //Console.WriteLine("next: " + NEXT);
                 info_block.Read(currentOffset + 2, out short PREV);
                 info_block.Read(currentOffset + 4, out int OFF);
+                //Console.WriteLine(OFF);
 
                 //Console.WriteLine("next: " + NEXT);
                 //Console.WriteLine("prev: " + PREV);
@@ -340,17 +350,29 @@ namespace DATLib
                 NAME = "";
                 if (OFF >= 0)
                 {
+                    //Console.WriteLine("offset stuff");
+                    //Console.WriteLine(OFF);
+                    //Console.WriteLine(NAME_OFF);
+                    //Console.WriteLine(nameOffset);
                     OFF += (int)NAME_OFF;
                     //Console.WriteLine(OFF);
 
-                    bool previousZero = false;
+                    //bool previousZero = false;
+                    int nameOffset = 0;
                     while (true)
                     {
-                        info_block.Read(NAME_OFF + nameOffset, out byte currByte);
+                        info_block.Read(OFF + nameOffset, out byte currByte);
                         if (currByte == 0)
                         {
-                            if (previousZero == true) { NAME = NAME.Substring(0, NAME.Length - 1); nameOffset++; break; }
-                            previousZero = true;
+                            //if (NAME.Length == 0)
+                            //{
+                            //    nameOffset++;
+                            //    continue;
+                            //}
+                            nameOffset++;
+                            break;
+                            //if (previousZero == true) { NAME = NAME.Substring(0, NAME.Length - 1); nameOffset++; break; }
+                            //previousZero = true;
                         }
                         NAME += (char)currByte;
                         nameOffset++;
@@ -358,6 +380,8 @@ namespace DATLib
                     //Console.WriteLine(NAME);
                     //currentOffset += nameOffset;
                 }
+
+                //Console.WriteLine("name: " + NAME);
 
                 //FULLPATH = "";
                 if (PREV != 0)
@@ -389,30 +413,38 @@ namespace DATLib
             }
 
             string fullName = @"\" + FULLPATH + NAME;
-            
+
+            //Console.WriteLine(fullName);
+            //throw new Exception();
+
             return fullName;
         }
 
         private static int GetName(int id)
         {
+
+
             string test = filenameTable[id];
             string fullname = test.Substring(1);
             long crc = is64 ? CRC_FNV_OFFSET_64 : CRC_FNV_OFFSET_32;
+            //Console.WriteLine("begin manipulate:");
+            //Console.WriteLine(crc);
             foreach (char character in fullname.ToUpper())
             {
                 crc ^= character;
                 crc *= is64 ? CRC_FNV_PRIME_64 : CRC_FNV_PRIME_32;
+                //Console.WriteLine(crc);
             }
             //Console.WriteLine(fullname.ToUpper());
 
-            Console.WriteLine(fullname.ToUpper());
-            Console.WriteLine(crc);
-            throw new Exception();
+            //Console.WriteLine(crc);
 
             if (!is64)
             {
                 crc &= 0xffffffff;
             }
+
+            //Console.WriteLine(crc);
 
             for (int i = 0; i < fileCount; i++)
             {
@@ -421,6 +453,10 @@ namespace DATLib
                     return i;
                 }
             }
+
+            //Console.WriteLine(fullname.ToUpper());
+
+            //throw new Exception();
 
             Console.WriteLine("Could not find CRC of file: {0}", fullname);
 
@@ -437,14 +473,15 @@ namespace DATLib
             //long temp4 = offset + (FILES * 4);
             //long temp8 = offset + (FILES * 8);
 
+            Console.WriteLine(offset);
             info_block.Read(offset + (fileCount * 4), out uint test);
             uint endBlock64 = offset + (fileCount * 8);
-            if (test != 0)
+            if (test != 0 && TYPE_BOH <= -8) // This TYPE_BOH check is just a guess, it might not be perfect and needs to be pushed backwards further 
             {
                 is64 = true;
             }
 
-            Console.WriteLine("64-bit: " + is64);
+            Console.WriteLine("64-bit archive: " + is64);
 
             for (int i = 0; i < fileCount; i++)
             {
