@@ -106,7 +106,7 @@ namespace DATLib
             files = new FileInfo[fileCount];
 
             if (TYPE_BOH != -1)
-            { // Lego Star Wars 1
+            { // Lego Star Wars 1 does not contain crc
                 GetCRCs(info_block, NAMECRC_OFF);
             }
 
@@ -145,11 +145,6 @@ namespace DATLib
             }
         }
 
-        private static void ExtractLegacy(MemoryMappedViewAccessor info_block)
-        {
-            
-        }
-
         private static void NewFormat(MemoryMappedViewAccessor info_block, MemoryMappedFile mmf)
         {
             byte[] check = new byte[4];
@@ -160,7 +155,7 @@ namespace DATLib
                 throw new Exception("Endianness is swapped");
             }
 
-            info_block.Read(12, out int TYPE_BOH);
+            info_block.Read(12, out TYPE_BOH);
             Endian.Swap(ref TYPE_BOH);
 
             info_block.Read(16, out uint NEW_FORMAT_VER);
@@ -194,7 +189,6 @@ namespace DATLib
                 Endian.Swap(ref NAME_OFF);
                 info_block.Read(offset + 4 + (i * length), out ushort FOLDER_ID);
                 Endian.Swap(ref FOLDER_ID);
-                //info_block.Read(offset + 6 + (i * length), out ushort BLANK);
                 info_block.Read(offset + 8 + (i * length), out short SOME_ID);
                 Endian.Swap(ref SOME_ID);
                 info_block.Read(offset + 10 + (i * length), out ushort FILE_ID);
@@ -224,7 +218,7 @@ namespace DATLib
                     }
 
                     NAME = folders[FOLDER_ID] + "\\" + NAME;
-                    if (FILE_ID != 0)
+                    if (FILE_ID  != 0)
                     {
                         paths[id] = NAME;
                         id++;
@@ -249,6 +243,8 @@ namespace DATLib
             files = new FileInfo[fileCount];
             filenameTable = paths;
 
+            Console.WriteLine("baseline offset: " + offset);
+
             for (int i = 0; i < fileCount; i++)
             {
                 long fileOffset;
@@ -267,6 +263,12 @@ namespace DATLib
                 
                 info_block.Read(offset + 12, out uint SIZE);
                 Endian.Swap(ref SIZE);
+
+                if (ZSIZE == 0x1cfc && SIZE == 0x2f31)
+                {
+                    Console.WriteLine("FILE IN QUESTION:");
+                    Console.WriteLine(offset);
+                }
 
                 long packed = 0;
                 if (TYPE_BOH <= -13) // The original script suggested -12, but that causes errors with dcsv
@@ -422,7 +424,10 @@ namespace DATLib
 
         private static int GetName(int id)
         {
-
+            if (TYPE_BOH == -1) // Only tested with Lego Star Wars 1 from the PS2
+            {
+                return (int)fileCount - 1 - id;
+            }
 
             string test = filenameTable[id];
             string fullname = test.Substring(1);
@@ -503,8 +508,6 @@ namespace DATLib
         {
             using (var chunk = mmf.CreateViewAccessor(file.offset, file.zsize))
             {
-
-                //Console.WriteLine("GOt here!");
                 string filename = file.path;
 
                 float div = (float)(Compression.totalExtracted) / DAT.fileCount;
@@ -517,6 +520,13 @@ namespace DATLib
 
                 byte[] completeFile = new byte[file.size];
                 int previousCopy = 0;
+
+                if (file.zsize < 5)
+                {
+                    chunk.ReadArray(0, completeFile, 0, (int)file.zsize);
+                    Compression.WriteFile(filename, completeFile);
+                    return;
+                }
 
                 while (chunkProgress < file.zsize)
                 {
@@ -556,13 +566,16 @@ namespace DATLib
                     {
                         Console.WriteLine("Warning: File {0} uses a compression method that has not yet been implemented!", filename);
                     }
-                    else if (char1 == 'R' && char2 == 'N' && char3 == 'C' && char4 == '_')
+                    else if (char1 == 'R' && char2 == 'N' && char3 == 'C')
                     {
-                        //throw new Exception("rnc");
-                        // According to others, there are no chunks for rnc and it is just the file :)
-                        //byte[] buffer = new byte[file.zsize];
-                        //decompressed = Compression.ExtractRnc(Buffer, decompressedSize);
-                        Console.WriteLine("Warning: File {0} uses a compression method that has not yet been implemented!", filename);
+                        byte[] buffer = new byte[file.zsize];
+                        chunk.ReadArray(0, buffer, 0, (int)file.zsize);
+
+                        chunk.Read(4, out decompressedSize);
+                        Endian.Swap(ref decompressedSize);
+                        compressedSize = file.zsize;
+                        decompressed = new byte[(int)file.size];
+                        RNC.Unpack(buffer, decompressed);
                     }
                     else if (char1 == 'R' && char2 == 'F' && char3 == 'P' && char4 == 'K')
                     {

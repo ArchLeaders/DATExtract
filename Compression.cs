@@ -6,6 +6,9 @@ using System.Text;
 using System.Threading.Tasks;
 using System.IO.Compression;
 using System.Runtime.InteropServices;
+using System.Diagnostics;
+using System.Threading.Tasks;
+using System.Reflection;
 //using RC4Cryptography;
 
 namespace DATLib
@@ -64,11 +67,44 @@ namespace DATLib
 
         internal static bool newa = false;
 
+        // My implementation of Deflate works mostly, but the newer archives have highlighted that it's not perfect - so I fall back to QuickBMS
+        private static byte[] CheatDeflate(uint decompressedSize, byte[] buffer)
+        {
+            byte[] toWrite = new byte[buffer.Length + 4];
+            toWrite[0] = (byte)((decompressedSize >> 24) & 0xff);
+            toWrite[1] = (byte)((decompressedSize >> 16) & 0xff);
+            toWrite[2] = (byte)((decompressedSize >> 8) & 0xff);
+            toWrite[3] = (byte)((decompressedSize >> 0) & 0xff);
+            Array.Copy(buffer, 0, toWrite, 4, buffer.Length);
+            string currentLocation = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
+            File.WriteAllBytes("deflatetest.dat", toWrite);
+            //Console.WriteLine(System.Reflection.Assembly.GetExecutingAssembly().Location);
+            Process cmd = new Process();
+            Console.WriteLine("Calling: " + currentLocation + "\\quickbms\\QuickBMSWrapper.exe");
+            cmd.StartInfo.FileName = currentLocation + "\\quickbms\\QuickBMSWrapper.exe";
+            cmd.StartInfo.Arguments = "deflatetest.dat";
+            cmd.StartInfo.WorkingDirectory = currentLocation;
+            cmd.StartInfo.RedirectStandardInput = true;
+            cmd.StartInfo.RedirectStandardOutput = true;
+            cmd.StartInfo.CreateNoWindow = false;
+            cmd.StartInfo.UseShellExecute = false;
+            cmd.Start();
+            cmd.WaitForExit();
+            byte[] fileData = File.ReadAllBytes(currentLocation + "/output.data");
+            File.Delete(currentLocation + "/output.data");
+            return fileData;
+        }
+
         internal static byte[] Deflate(byte[] buffer, uint decompressedSize)
         {
             byte[] decompressed = new byte[decompressedSize];
 
+
             int result = DeflateAlgorithm.Deflate(buffer, decompressed, decompressedSize);
+            if (result == 0)
+            {
+                decompressed = CheatDeflate(decompressedSize, buffer);
+            }
             DeflateAlgorithm.previousProgress += decompressed.Length;
 
             return decompressed;
@@ -113,5 +149,10 @@ namespace DATLib
             totalExtracted++;
         }
 
+        internal static void ExtractRNC(byte[] buffer, byte[] decompressed)
+        {
+            //RncStatus result = Rnc.ReadRnc(buffer, decompressed);
+            //Console.WriteLine(result);
+        }
     }
 }

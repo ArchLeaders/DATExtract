@@ -93,10 +93,10 @@ namespace DATLib
                         int fromBuf3 = chunk.buffer3[number];
                         fromBuf2 -= fromBuf1;
                         fromBuf2 += fromBuf3;
-                        if (fromBuf2 == 144)
-                        {
-                            Console.WriteLine();
-                        }
+                        //if (fromBuf2 == 144)
+                        //{
+                        //    Console.WriteLine();
+                        //}
                         chunk.bufferA[fromBuf2] = (byte)number;
                         chunk.bufferB[fromBuf2] = (short)i;
                         if (number < 10)
@@ -347,7 +347,7 @@ namespace DATLib
                 int success = 1; // Supposed to check if the functions all return 1, but idc
                 if (testByte == 1)
                 {
-                    Console.WriteLine("not sure what to do here");
+                    return 0;
                 }
                 else
                 {
@@ -442,10 +442,10 @@ namespace DATLib
                     }
                     if (0xff < current) break;
                     resultantFile[pos] = (byte)current;
-                    if (pos == 293)
-                    {
-                        Console.WriteLine();
-                    }
+                    //if (pos == 293)
+                    //{
+                    //    Console.WriteLine();
+                    //}
                     TestWithSample(resultantFile, pos);
                     pos++;
                 }

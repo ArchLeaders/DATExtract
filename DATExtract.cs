@@ -33,12 +33,21 @@ namespace DATLib
             {
                 DAT.mmf.Dispose(); // Frees the file
             }
+
             DAT.mmf = MemoryMappedFile.CreateFromFile(datFile, FileMode.Open, Path.GetFileNameWithoutExtension(datFile) + "DATFile");
             DAT.files = null;
 
             if (extractLocation == "")
             {
                 extractLocation = Path.GetDirectoryName(datFile);
+            }
+        }
+
+        public static void ReleaseDAT()
+        {
+            if (DAT.mmf != null)
+            {
+                DAT.mmf.Dispose();
             }
         }
 
