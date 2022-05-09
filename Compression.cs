@@ -9,6 +9,9 @@ using System.Runtime.InteropServices;
 using System.Diagnostics;
 using System.Threading.Tasks;
 using System.Reflection;
+using System.IO.MemoryMappedFiles;
+using System.Threading;
+using SevenZip;
 //using RC4Cryptography;
 
 namespace DATLib
@@ -65,34 +68,38 @@ namespace DATLib
             return decompressed;
         }
 
-        internal static bool newa = false;
-
-        // My implementation of Deflate works mostly, but the newer archives have highlighted that it's not perfect - so I fall back to QuickBMS
-        private static byte[] CheatDeflate(uint decompressedSize, byte[] buffer)
+        internal static byte[] CheatDeflate(uint decompressedSize, byte[] buffer)
         {
-            byte[] toWrite = new byte[buffer.Length + 4];
-            toWrite[0] = (byte)((decompressedSize >> 24) & 0xff);
-            toWrite[1] = (byte)((decompressedSize >> 16) & 0xff);
-            toWrite[2] = (byte)((decompressedSize >> 8) & 0xff);
-            toWrite[3] = (byte)((decompressedSize >> 0) & 0xff);
-            Array.Copy(buffer, 0, toWrite, 4, buffer.Length);
-            string currentLocation = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
-            File.WriteAllBytes("deflatetest.dat", toWrite);
-            //Console.WriteLine(System.Reflection.Assembly.GetExecutingAssembly().Location);
-            Process cmd = new Process();
-            Console.WriteLine("Calling: " + currentLocation + "\\quickbms\\QuickBMSWrapper.exe");
-            cmd.StartInfo.FileName = currentLocation + "\\quickbms\\QuickBMSWrapper.exe";
-            cmd.StartInfo.Arguments = "deflatetest.dat";
-            cmd.StartInfo.WorkingDirectory = currentLocation;
-            cmd.StartInfo.RedirectStandardInput = true;
-            cmd.StartInfo.RedirectStandardOutput = true;
-            cmd.StartInfo.CreateNoWindow = false;
-            cmd.StartInfo.UseShellExecute = false;
-            cmd.Start();
-            cmd.WaitForExit();
-            byte[] fileData = File.ReadAllBytes(currentLocation + "/output.data");
-            File.Delete(currentLocation + "/output.data");
-            return fileData;
+            return BMSInterfacer.SendToProcess(new byte[] { (byte)'D', (byte)'F', (byte)'L', (byte)'T' }, decompressedSize, buffer);
+        }
+
+        internal static byte[] RFPK(byte[] buffer, uint decompressedSize)
+        {
+            byte[] result = new byte[0];
+            try
+            {
+                result = BMSInterfacer.SendToProcess(new byte[] { (byte)'R', (byte)'F', (byte)'P', (byte)'K' }, decompressedSize, buffer);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex);
+            }
+            return result;
+        }
+
+        internal static byte[] LZ2K(byte[] buffer, uint decompressedSize)
+        {
+            return BMSInterfacer.SendToProcess(new byte[] { (byte)'L', (byte)'Z', (byte)'2', (byte)'K' }, decompressedSize, buffer);
+        }
+
+        internal static byte[] LZMA(byte[] buffer, uint decompressedSize)
+        {
+            var decoder = new SevenZip.Compression.LZMA.Decoder();
+            MemoryStream input = new MemoryStream();
+            input.Write(buffer, 0, buffer.Length);
+            MemoryStream output = new MemoryStream();
+            decoder.Code(input, output, buffer.Length, decompressedSize, null);
+            return output.ToArray();
         }
 
         internal static byte[] Deflate(byte[] buffer, uint decompressedSize)
@@ -103,7 +110,14 @@ namespace DATLib
             int result = DeflateAlgorithm.Deflate(buffer, decompressed, decompressedSize);
             if (result == 0)
             {
-                decompressed = CheatDeflate(decompressedSize, buffer);
+                try
+                {
+                    decompressed = CheatDeflate(decompressedSize, buffer);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine(ex);
+                }
             }
             DeflateAlgorithm.previousProgress += decompressed.Length;
 

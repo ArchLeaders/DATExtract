@@ -9,6 +9,9 @@
     <RootNamespace>DATExtract</RootNamespace>
     <AssemblyName>DATExtract</AssemblyName>
     <SignAssembly>true</SignAssembly>
+    <Version>1.1.0</Version>
+    <Authors>Connor Harrison</Authors>
+    <Description />
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
@@ -36,6 +39,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="LZMA-SDK" Version="19.0.0" />
     <PackageReference Include="SharpZipLib" Version="1.3.3" />
   </ItemGroup>
 

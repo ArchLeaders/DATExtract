@@ -11,8 +11,8 @@ namespace DATLib.DATFormats
     {
         public static void Extract(MemoryMappedViewAccessor info_block, MemoryMappedFile mmf)
         {
-            uint fileCount = DAT.fileCount;
-            int TYPE_BOH = DAT.TYPE_BOH;
+            uint fileCount = AccessDAT.fileCount;
+            int TYPE_BOH = AccessDAT.TYPE_BOH;
 
             for (int i = 0; i < fileCount; i++)
             {

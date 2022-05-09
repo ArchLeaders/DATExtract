@@ -29,13 +29,13 @@ namespace DATLib
             Compression.CheckOodle();
 
             fileLocation = datFile;
-            if (DAT.mmf != null)
+            if (AccessDAT.mmf != null)
             {
-                DAT.mmf.Dispose(); // Frees the file
+                AccessDAT.mmf.Dispose(); // Frees the file
             }
 
-            DAT.mmf = MemoryMappedFile.CreateFromFile(datFile, FileMode.Open, Path.GetFileNameWithoutExtension(datFile) + "DATFile");
-            DAT.files = null;
+            AccessDAT.mmf = MemoryMappedFile.CreateFromFile(datFile, FileMode.Open, Path.GetFileNameWithoutExtension(datFile) + "DATFile");
+            AccessDAT.files = null;
 
             if (extractLocation == "")
             {
@@ -45,9 +45,9 @@ namespace DATLib
 
         public static void ReleaseDAT()
         {
-            if (DAT.mmf != null)
+            if (AccessDAT.mmf != null)
             {
-                DAT.mmf.Dispose();
+                AccessDAT.mmf.Dispose();
             }
         }
 
@@ -60,12 +60,12 @@ namespace DATLib
         {
             if (fileLocation == null) throw new Exception("Missing .dat file!");
 
-            if (DAT.files == null)
+            if (AccessDAT.files == null)
             {
-                DAT.GetInfo();
+                AccessDAT.GetInfo();
             }
 
-            return DAT.files;
+            return AccessDAT.files;
         }
 
         private static void UpdateResult(int fileCount)
@@ -84,7 +84,7 @@ namespace DATLib
             {
                 Console.WriteLine("Currently extracting: " + file.path);
                 worker.ReportProgress((int)((float)filesCompleted / files.Length * 100), file.path);
-                DAT.ExtractFile(file);
+                AccessDAT.ExtractFile(file);
                 filesCompleted++;
                 if (worker != null)
                 {
@@ -106,7 +106,7 @@ namespace DATLib
         public static void ExtractFile(FileInfo file) // Only one file, so progress cannot be reported.
         {
             Compression.totalExtracted = 0;
-            DAT.ExtractFile(file);
+            AccessDAT.ExtractFile(file);
             Extract.WriteFile();
             Extract.ResetLists();
             UpdateResult(1);
@@ -119,7 +119,7 @@ namespace DATLib
 
         public static void ExtractAll(BackgroundWorker worker = null)
         {
-            Handler(DAT.files, worker);
+            Handler(AccessDAT.files, worker);
         }
 
         public static ExtractResult GetResult()

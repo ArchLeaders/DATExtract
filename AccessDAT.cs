@@ -10,11 +10,9 @@ using System.IO.Compression;
 
 namespace DATLib
 {
-    internal static class DAT
+    internal static class AccessDAT
     {
         internal static MemoryMappedFile mmf;
-
-        private static bool NEW_FORMAT = true;
 
         public static FileInfo[] files;
 
@@ -23,10 +21,6 @@ namespace DATLib
         internal static int TYPE_BOH;
 
         internal static uint fileCount;
-
-        //private static long CRC_FNV_OFFSET = -3750763034362895579;
-
-        //private static long CRC_FNV_PRIME = 1099511628211;
 
         private static long CRC_FNV_OFFSET_32 = 0x811c9dc5;
 
@@ -65,8 +59,6 @@ namespace DATLib
 
                 using (var info_block = mmf.CreateViewAccessor(offset, size))
                 {
-                    Console.WriteLine("offset: " + offset);
-
                     info_block.Read(0, out TYPE_BOH);
 
                     info_block.Read(4, out fileCount);
@@ -98,7 +90,6 @@ namespace DATLib
             }
 
             uint NAME_OFF = NAME_INFO + (NAMES * NAME_FIELD_SIZE);
-            Console.WriteLine(NAME_OFF);
             info_block.Read(NAME_OFF, out uint NAMECRC_OFF);
             NAME_OFF += 4;
             NAMECRC_OFF += NAME_OFF;
@@ -178,13 +169,12 @@ namespace DATLib
 
             uint length = 12;
 
-            //files.Add(new FileInfo());
-
             string[] folders = new string[NAMES];
             string[] paths = new string[NAMES];
 
             for (int i = 0; i < NAMES; i++)
             {
+
                 info_block.Read(offset + (i * length), out uint NAME_OFF);
                 Endian.Swap(ref NAME_OFF);
                 info_block.Read(offset + 4 + (i * length), out ushort FOLDER_ID);
@@ -197,7 +187,6 @@ namespace DATLib
                 if (NAME_OFF != 0xffffffff)
                 {
                     string NAME = "";
-                    //info_block.Read(32 + NAME_OFF, out NAME);
                     bool previousZero = false;
                     uint nameOffset = 0;
                     while (true)
@@ -217,7 +206,12 @@ namespace DATLib
                         FILE_ID = (ushort)id;
                     }
 
+                    //Console.WriteLine(NAME);
                     NAME = folders[FOLDER_ID] + "\\" + NAME;
+                    //Console.WriteLine(FILE_ID);
+                    //Console.WriteLine("Constructed name: {0}", NAME);
+                    //Console.WriteLine(FOLDER_ID);
+                    //Console.WriteLine(i);
                     if (FILE_ID  != 0)
                     {
                         paths[id] = NAME;
@@ -243,8 +237,6 @@ namespace DATLib
             files = new FileInfo[fileCount];
             filenameTable = paths;
 
-            Console.WriteLine("baseline offset: " + offset);
-
             for (int i = 0; i < fileCount; i++)
             {
                 long fileOffset;
@@ -263,12 +255,6 @@ namespace DATLib
                 
                 info_block.Read(offset + 12, out uint SIZE);
                 Endian.Swap(ref SIZE);
-
-                if (ZSIZE == 0x1cfc && SIZE == 0x2f31)
-                {
-                    Console.WriteLine("FILE IN QUESTION:");
-                    Console.WriteLine(offset);
-                }
 
                 long packed = 0;
                 if (TYPE_BOH <= -13) // The original script suggested -12, but that causes errors with dcsv
@@ -478,7 +464,6 @@ namespace DATLib
             //long temp4 = offset + (FILES * 4);
             //long temp8 = offset + (FILES * 8);
 
-            Console.WriteLine(offset);
             info_block.Read(offset + (fileCount * 4), out uint test);
             uint endBlock64 = offset + (fileCount * 8);
             if (test != 0 && TYPE_BOH <= -8) // This TYPE_BOH check is just a guess, it might not be perfect and needs to be pushed backwards further 
@@ -510,7 +495,7 @@ namespace DATLib
             {
                 string filename = file.path;
 
-                float div = (float)(Compression.totalExtracted) / DAT.fileCount;
+                float div = (float)(Compression.totalExtracted) / AccessDAT.fileCount;
                 uint percentage = (uint)(div * 100);
 
                 ManageConsole.ChangeTitle($"Extracting... ({percentage}%)");
@@ -556,15 +541,22 @@ namespace DATLib
                     else if (char1 == 'O' && char2 == 'O' && char3 == 'D' && char4 == '2')
                     {
                         // Uses oodle with a different parameter
-                        Console.WriteLine("Warning: File {0} uses a compression method that has not yet been implemented!", filename);
+                        Console.WriteLine("Warning: File {0} uses a compression method that has not yet been implemented! (OOD2)", filename);
                     }
                     else if (char1 == 'L' && char2 == 'Z' && char3 == '2' && char4 == 'K')
                     {
-                        Console.WriteLine("Warning: File {0} uses a compression method that has not yet been implemented!", filename);
+                        Console.WriteLine("Warning: File {0} uses a compression method that has not yet been implemented! (LZ2K)", filename);
+                        //chunk.Read(8 + offset, out decompressedSize);
+                        //chunk.Read(4 + offset, out compressedSize);
+
+                        //byte[] buffer = new byte[compressedSize];
+                        //chunk.ReadArray(12 + offset, buffer, 0, (int)compressedSize);
+
+                        //decompressed = Compression.LZ2K(buffer, decompressedSize);
                     }
                     else if (char1 == 'Z' && char2 == 'L' && char3 == 'I' && char4 == 'B')
                     {
-                        Console.WriteLine("Warning: File {0} uses a compression method that has not yet been implemented!", filename);
+                        Console.WriteLine("Warning: File {0} uses a compression method that has not yet been implemented! (ZLIB)", filename);
                     }
                     else if (char1 == 'R' && char2 == 'N' && char3 == 'C')
                     {
@@ -579,11 +571,17 @@ namespace DATLib
                     }
                     else if (char1 == 'R' && char2 == 'F' && char3 == 'P' && char4 == 'K')
                     {
-                        Console.WriteLine("Warning: File {0} uses a compression method that has not yet been implemented!", filename);
+                        chunk.Read(4 + offset, out compressedSize);
+                        chunk.Read(8 + offset, out decompressedSize);
+
+                        byte[] buffer = new byte[compressedSize];
+                        chunk.ReadArray(12 + offset, buffer, 0, (int)compressedSize);
+
+                        decompressed = Compression.RFPK(buffer, decompressedSize);
                     }
                     else if (char1 == 'L' && char2 == 'Z' && char3 == 'M' && char4 == 'A')
-                    {
-                        Console.WriteLine("Warning: File {0} uses a compression method that has not yet been implemented!", filename);
+                    { // I'm not actually sure if this exists in any archives, but I have included some code for it, just needs connecting.
+                        Console.WriteLine("Warning: File {0} uses a compression method that has not yet been implemented! (LZMA)", filename);
                     }
                     else if (char1 == 'D' && char2 == 'F' && char3 == 'L' && char4 == 'T')
                     {
@@ -617,16 +615,23 @@ namespace DATLib
                         compressed = false;
                     }
 
-                    if (decompressed != null && decompressed.Length > 0)
+                    try
                     {
-                        Array.Copy(decompressed, 0, completeFile, previousCopy, decompressed.Length);
-                        previousCopy += decompressed.Length;
+                        if (decompressed != null && decompressed.Length > 0)
+                        {
+                            Array.Copy(decompressed, 0, completeFile, previousCopy, decompressed.Length);
+                            previousCopy += decompressed.Length;
+                        }
+                        else if (compressed)
+                        {
+                            Console.WriteLine("Could not extract {0}", filename);
+                            Extract.AddFailedFile(filename);
+                            return;
+                        }
                     }
-                    else if (compressed)
+                    catch (Exception ex)
                     {
-                        Console.WriteLine("Could not extract {0}", filename);
-                        Extract.AddFailedFile(filename);
-                        return;
+                        Console.WriteLine(ex);
                     }
 
                     if (compressedSize == 0)
