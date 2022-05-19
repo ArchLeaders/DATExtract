@@ -43,4 +43,10 @@
     <PackageReference Include="SharpZipLib" Version="1.3.3" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Reference Include="ModLib">
+      <HintPath>..\ModLib\bin\Debug\net5.0\ModLib.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
 </Project>

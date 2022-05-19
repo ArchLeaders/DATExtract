@@ -100,12 +100,12 @@ namespace DATLib
             { // Lego Star Wars 1 does not contain crc
                 GetCRCs(info_block, NAMECRC_OFF);
             }
-
             uint newOffset = 0;
             if (TYPE_BOH <= -2)
             {
                 newOffset = 8;
             }
+
 
             pathsOldFormat = new List<string>();
 
@@ -133,6 +133,14 @@ namespace DATLib
                 files[fileId].zsize = zsize;
                 files[fileId].size = size;
                 files[fileId].packed = packed;
+            }
+
+            for (int i = 0; i < fileCount; i++)
+            {
+                if (files[i].path == null)
+                {
+                    Console.WriteLine(files[i].crc);
+                }
             }
         }
 
@@ -445,6 +453,14 @@ namespace DATLib
                 }
             }
 
+            for (int i = 0; i < fileCount; i++)
+            {
+                if (files[i].path == fullname)
+                {
+                    return i;
+                }
+            }
+
             //Console.WriteLine(fullname.ToUpper());
 
             //throw new Exception();
@@ -485,6 +501,39 @@ namespace DATLib
                 {
                     info_block.Read(offset + (i * 4), out uint crc);
                     files[i].crc = crc;
+                }
+            }
+
+            uint endOfCrcBlock = offset + (fileCount * 4);
+            info_block.Read(endOfCrcBlock, out uint collisionFiles);
+            info_block.Read(endOfCrcBlock + 4, out uint collisionNamesSize);
+            if (collisionFiles != 0)
+            {
+                Console.WriteLine("CRC collisions detected for {0} files, fixing...", collisionFiles);
+                uint nameOffset = 0;
+                for (int i = 0; i < collisionFiles; i++)
+                {
+                    string NAME = "";
+                    while (true)
+                    {
+                        info_block.Read(endOfCrcBlock + 8 + nameOffset, out byte currByte);
+                        if (currByte == 0)
+                        {
+                            //if (NAME.Length == 0)
+                            //{
+                            //    nameOffset++;
+                            //    continue;
+                            //}
+                            nameOffset++;
+                            break;
+                            //if (previousZero == true) { NAME = NAME.Substring(0, NAME.Length - 1); nameOffset++; break; }
+                            //previousZero = true;
+                        }
+                        NAME += (char)currByte;
+                        nameOffset++;
+                    }
+                    files[i].path = NAME;
+                    nameOffset += 3;
                 }
             }
         }
