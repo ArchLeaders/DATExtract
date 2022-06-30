@@ -110,7 +110,8 @@ namespace DATExtract
 
             // Because memory mapped files are trash
             // Once they're created, they cannot be resized, so I'll just make it the max theoretical size.
-            using (MemoryMappedFile file = MemoryMappedFile.CreateOrOpen("DATManQuickBMS", 32768 + 8, MemoryMappedFileAccess.ReadWrite, MemoryMappedFileOptions.None, HandleInheritability.Inheritable))
+            // 29/06/22 - Connor from the future here, looks like Dimensions DATs just throw the "max theoretical size" out the window and don't partition the files...
+            using (MemoryMappedFile file = MemoryMappedFile.CreateOrOpen("DATManQuickBMS", 100000 + 8, MemoryMappedFileAccess.ReadWrite, MemoryMappedFileOptions.None, HandleInheritability.Inheritable))
             {
                 using (MemoryMappedViewStream stream = file.CreateViewStream())
                 {

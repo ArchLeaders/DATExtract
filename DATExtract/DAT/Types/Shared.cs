@@ -4,6 +4,8 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
+using ModLib;
+
 namespace DATExtract
 {
     public partial class DATFile
@@ -49,6 +51,60 @@ namespace DATExtract
             return 0;
         }
 
+        private bool DetectVariant()
+        {
+
+            long currentOffset = hdrBlock.Position;
+            byte lastByte = 0x00;
+
+            // BIG-ENDIAN: 32-BIT
+            bool isBig32 = true;
+            for (int i = 0; i < fileCount / 4; i++) // Take a small sample, and try to figure out DAT structure
+            {
+                byte currByte = hdrBlock.ReadByte();
+                hdrBlock.Seek(3, SeekOrigin.Current);
+                if (currByte < lastByte)
+                {
+                    isBig32 = false;
+                    break;
+                }
+                lastByte = currByte;
+            }
+
+            if (isBig32)
+            {
+                is64 = false;
+                return true;
+            }
+
+            // LITTLE-ENDIAN: 32-BIT
+            bool isLittle32 = true;
+            lastByte = 0x00;
+
+            hdrBlock.Seek(currentOffset + 3, SeekOrigin.Begin);
+
+            for (int i = 0; i < fileCount / 4; i++)
+            {
+                byte currByte = hdrBlock.ReadByte();
+                hdrBlock.Seek(3, SeekOrigin.Current);
+                if (currByte < lastByte)
+                {
+                    isLittle32 = false;
+                    break;
+                }
+                lastByte = currByte;
+            }
+
+            if (isLittle32)
+            {
+                is64 = false;
+                return false;
+            }
+
+            // PROBABLY 64-BIT
+            return true;
+        }
+
         private void GetCRCs()
         {
             long currentOffset = hdrBlock.Position;
@@ -61,7 +117,12 @@ namespace DATExtract
 
             hdrBlock.Seek(currentOffset, SeekOrigin.Begin);
 
-            Console.WriteLine("64-bit archive: " + is64);
+
+            bool bigEndian = DetectVariant();
+            
+            Console.WriteLine("Implicit archive format: {0}-Bit ({1}-Endian)", is64 ? "64" : "32", bigEndian ? "Big" : "Little");
+
+            hdrBlock.Seek(currentOffset, SeekOrigin.Begin);
 
             bool checkForCollisions = false;
 
@@ -73,13 +134,8 @@ namespace DATExtract
                 }
                 else
                 {
-                    files[i].crc = hdrBlock.ReadUint();
+                    files[i].crc = hdrBlock.ReadUint(bigEndian);
                 }
-
-                //if (crcTranslation.ContainsKey(files[i].crc))
-                //{
-                //    Console.WriteLine(files[i].crc);
-                //}
 
                 crcTranslation[files[i].crc] = i;
 
@@ -91,7 +147,8 @@ namespace DATExtract
 
             if (checkForCollisions == false) return;
 
-            uint collisionFiles = hdrBlock.ReadUint();
+            uint collisionFiles = hdrBlock.ReadUint(bigEndian);
+
             uint collisionNamesSize = hdrBlock.ReadUint();
             if (collisionFiles > 0)
             {
@@ -99,7 +156,20 @@ namespace DATExtract
                 for (int i = 0; i < collisionFiles; i++)
                 {
                     string path = hdrBlock.ReadNullString();
-                    hdrBlock.Seek(3, SeekOrigin.Current);
+                    while(true)
+                    {
+                        byte testByte = hdrBlock.ReadByte();
+                        if (testByte >= 60)
+                        {
+                            hdrBlock.Seek(-1, SeekOrigin.Current);
+                            break;
+                        } 
+                        else if (testByte != 0)
+                        {
+                            break;
+                        }
+                    }
+
                     files[i].path = path;
                 }
             }

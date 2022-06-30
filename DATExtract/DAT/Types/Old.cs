@@ -57,6 +57,14 @@ namespace DATExtract
 
                 files[fileId].path = name;
             }
+
+            //string[] paths = new string[fileCount];
+            //for (int i = 0; i < fileCount; i++)
+            //{
+            //    paths[i] = files[i].path;
+            //}
+
+            //File.WriteAllLines(@"A:\Projects\datpack\GAME.DAT.debug", paths);
         }
 
         internal uint nameBlockPointer = 0;
