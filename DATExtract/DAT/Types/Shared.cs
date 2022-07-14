@@ -53,9 +53,31 @@ namespace DATExtract
 
         private bool DetectVariant()
         {
+            // Hot-fixes
+            if (archiveId == -2)
+            { // Stupid thing doesn't store files in ascending FNV hashes so the variant detection below doesn't work...
+                is64 = false;
+                return false;
+            }
 
             long currentOffset = hdrBlock.Position;
             byte lastByte = 0x00;
+
+            if (patchFormat == "BIG32")
+            {
+                is64 = false;
+                return true;
+            }
+            else if (patchFormat == "LIT32")
+            {
+                is64 = false;
+                return false;
+            }
+            else if (patchFormat == "BIG64")
+            {
+                is64 = true;
+                return true;
+            }
 
             // BIG-ENDIAN: 32-BIT
             bool isBig32 = true;
@@ -101,6 +123,54 @@ namespace DATExtract
                 return false;
             }
 
+            // BIG-ENDIAN: 64-BIT
+            bool isBig64 = true;
+            lastByte = 0x00;
+
+            hdrBlock.Seek(currentOffset, SeekOrigin.Begin);
+
+            for (int i = 0; i < fileCount / 4; i++)
+            {
+                byte currByte = hdrBlock.ReadByte();
+                hdrBlock.Seek(7, SeekOrigin.Current);
+                if (currByte < lastByte)
+                {
+                    isBig64 = false;
+                    break;
+                }
+                lastByte = currByte;
+            }
+
+            if (isBig64)
+            {
+                is64 = true;
+                return true;
+            }
+
+            // LITTLE-ENDIAN: 64-BIT
+            bool isLittle64 = true;
+            lastByte = 0x00;
+
+            hdrBlock.Seek(currentOffset + 7, SeekOrigin.Begin);
+
+            for (int i = 0; i < fileCount / 4; i++)
+            {
+                byte currByte = hdrBlock.ReadByte();
+                hdrBlock.Seek(7, SeekOrigin.Current);
+                if (currByte < lastByte)
+                {
+                    isLittle64 = false;
+                    break;
+                }
+                lastByte = currByte;
+            }
+
+            if (isLittle64)
+            {
+                is64 = true;
+                return false;
+            }
+
             // PROBABLY 64-BIT
             return true;
         }
@@ -119,7 +189,7 @@ namespace DATExtract
 
 
             bool bigEndian = DetectVariant();
-            
+
             Console.WriteLine("Implicit archive format: {0}-Bit ({1}-Endian)", is64 ? "64" : "32", bigEndian ? "Big" : "Little");
 
             hdrBlock.Seek(currentOffset, SeekOrigin.Begin);
@@ -136,6 +206,8 @@ namespace DATExtract
                 {
                     files[i].crc = hdrBlock.ReadUint(bigEndian);
                 }
+
+                //Console.WriteLine("{0}", files[i].crc);
 
                 crcTranslation[files[i].crc] = i;
 

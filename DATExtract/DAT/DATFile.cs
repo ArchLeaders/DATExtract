@@ -7,10 +7,12 @@ namespace DATExtract
         private ModFile hdrBlock;
         private ModFile fullFile;
 
+        public string patchFormat { get; private set; }
+
         public bool verboseOutput = false; // Should output every extract message to console (very slow)
         public string fileLocation { get; private set; }
 
-        public uint hdrOffset { get; private set; }
+        public long hdrOffset { get; private set; }
 
         public uint nameInfoOffset { get; private set; }
 
@@ -102,7 +104,16 @@ namespace DATExtract
                 }
                 else if (cc4 == "RFPK")
                 {
-                    successAmount = ChunkHandler.ExtractRFPK(currentChunk, compressedSize, decompressed, decompressedSize);
+
+                    if (compressedSize == decompressedSize)
+                    {
+                        successAmount = compressedSize;
+                        Array.Copy(currentChunk, decompressed, compressedSize);
+                    }
+                    else
+                    { // Not sure if this applies for every type of com-method, but it definitely applies here.
+                        successAmount = ChunkHandler.ExtractRFPK(currentChunk, compressedSize, decompressed, decompressedSize);
+                    }
                 }
                 else if (cc4 == "DFLT")
                 {
@@ -144,7 +155,7 @@ namespace DATExtract
                 }
 
                 Array.Copy(decompressed, 0, totalFile, progress, decompressedSize);
-                progress += decompressed.Length;
+                progress += decompressedSize;
 
                 offset += 12 + compressedSize;
             }

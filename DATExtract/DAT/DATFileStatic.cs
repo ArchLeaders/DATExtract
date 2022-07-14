@@ -34,10 +34,21 @@ namespace DATExtract
                 }
                 dat.hdrOffset = hdrOffset;
 
+                if (file.fileStream.Length > uint.MaxValue)
+                {
+                    Console.WriteLine("Archive is very large, sliding header offset.");
+                    long newHdrOffset = 0x0100000000;
+                    newHdrOffset ^= hdrOffset;
+                    dat.hdrOffset = newHdrOffset;
+                }
+
                 uint hdrSize = file.ReadUint();
                 dat.hdrSize = hdrSize;
 
-                using (ModFile hdrBlock = file.LoadSegment((long)hdrOffset, (int)hdrSize))
+                file.Seek(16, SeekOrigin.Begin);
+                dat.patchFormat = file.ReadString(5);
+
+                using (ModFile hdrBlock = file.LoadSegment(dat.hdrOffset, (int)hdrSize))
                 {
                     dat.hdrBlock = hdrBlock;
 

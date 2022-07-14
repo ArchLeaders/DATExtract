@@ -10,8 +10,8 @@ namespace DATExtract
 {
     internal static class ChunkHandler
     {
-        [DllImport(@"RefPack.dll")]
-        private static extern int rfpk_decompress(byte[] input, int inputSize, byte[] output, int outputSize);
+        //[DllImport(@"RefPack.dll")]
+        //private static extern int rfpk_decompress(byte[] input, int inputSize, byte[] output, int outputSize);
 
         [DllImport(@"oo2core_8_win64.dll")]
         private static extern int OodleLZ_Decompress(byte[] buffer, long bufferSize, byte[] outputBuffer, long outputBufferSize,
@@ -46,12 +46,12 @@ namespace DATExtract
 
         public static int ExtractLZ2K(byte[] chunk, int compressedSize, byte[] decompressed, int decompressedSize)
         {
-             return BMSInterfacer.SendToProcess("LZ2K", chunk, compressedSize, decompressed, decompressedSize);
+            return BMSInterfacer.SendToProcess("LZ2K", chunk, compressedSize, decompressed, decompressedSize);
         }
 
         public static int ExtractRFPK(byte[] chunk, int compressedSize, byte[] decompressed, int decompressedSize)
         {
-            return rfpk_decompress(chunk, compressedSize, decompressed, decompressedSize);
+            return BMSInterfacer.SendToProcess("RFPK", chunk, compressedSize, decompressed, decompressedSize);
         }
 
         public static int ExtractOODL(byte[] chunk, int compressedSize, byte[] decompressed, int decompressedSize)

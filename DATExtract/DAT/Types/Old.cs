@@ -27,7 +27,7 @@ namespace DATExtract
 
             files = new CompFile[fileCount];
 
-            if (archiveId != -1)
+            if (archiveId != -1) // -2 = LIJ1 on PS3
             {
                 hdrBlock.Seek(nameSignOffset, SeekOrigin.Begin);
                 GetCRCs();
@@ -50,21 +50,34 @@ namespace DATExtract
                 files[i].offset = offset + (packed >> 24);
             }
 
+            //if (archiveId == -2)
+            //{
+            //    hdrBlock.Seek(16, SeekOrigin.Current);
+            //    GetCRCs();
+            //}
+
+            string[] paths = new string[fileCount];
             for (int i = 0; i < fileCount; i++)
             {
                 string name = @"\" + SetName();
+                paths[i] = name;
                 int fileId = GetFileID(i, name);
 
                 files[fileId].path = name;
             }
 
-            //string[] paths = new string[fileCount];
+            //uint spaceSaved = 0;
             //for (int i = 0; i < fileCount; i++)
             //{
-            //    paths[i] = files[i].path;
+            //    if (files[i].packed != 0)
+            //    {
+            //        spaceSaved += files[i].size - files[i].zsize;
+            //        if (files[i].path.Contains("\\stuff\\"))
+            //            Console.WriteLine(files[i].path);
+            //    }
             //}
 
-            //File.WriteAllLines(@"A:\Projects\datpack\GAME.DAT.debug", paths);
+            //Console.WriteLine("Space saved: " + spaceSaved);
         }
 
         internal uint nameBlockPointer = 0;
