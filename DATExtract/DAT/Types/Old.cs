@@ -38,7 +38,7 @@ namespace DATExtract
             hdrBlock.Seek(8, SeekOrigin.Begin);
             for (int i = 0; i < fileCount; i++)
             {
-                uint offset = hdrBlock.ReadUint();
+                long offset = hdrBlock.ReadUint();
                 files[i].zsize = hdrBlock.ReadUint();
                 files[i].size = hdrBlock.ReadUint();
                 uint packed = hdrBlock.ReadUint();
