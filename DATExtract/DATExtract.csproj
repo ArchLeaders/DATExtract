@@ -4,15 +4,13 @@
     <TargetFramework>net6.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <Platforms>AnyCPU;x64</Platforms>
-    <SignAssembly>False</SignAssembly>
-    <Configurations>Debug;Release;Build</Configurations>
+	  
+	  <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>
+	  <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
   </PropertyGroup>
 
   <ItemGroup>
-    <Reference Include="ModLib">
-      <HintPath>..\..\ModLib\bin\x64\Release\net6.0\ModLib.dll</HintPath>
-    </Reference>
+    <ProjectReference Include="..\..\ModLib\ModLib.csproj" />
   </ItemGroup>
 
 </Project>
