@@ -1,0 +1,3 @@
+[submodule "ModLib"]
+	path = ModLib
+	url = https://github.com/ArchLeaders/ModLib
